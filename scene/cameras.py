@@ -9,10 +9,11 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+import numpy as np
 import torch
 from torch import nn
-import numpy as np
-from utils.graphics_utils import getWorld2View2, getProjectionMatrix
+
+from utils.graphics_utils import getProjectionMatrix, getWorld2View2
 
 
 class Camera(nn.Module):
@@ -27,6 +28,8 @@ class Camera(nn.Module):
         gt_alpha_mask,
         image_name,
         uid,
+        obj_R=None,
+        obj_T=None,
         trans=np.array([0.0, 0.0, 0.0]),
         scale=1.0,
         data_device="cuda",
@@ -40,6 +43,9 @@ class Camera(nn.Module):
         self.FoVx = FoVx
         self.FoVy = FoVy
         self.image_name = image_name
+
+        self.obj_R = obj_R
+        self.obj_T = obj_T
 
         try:
             self.data_device = torch.device(data_device)

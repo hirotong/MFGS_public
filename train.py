@@ -23,7 +23,9 @@ from gaussian_renderer import network_gui, render
 from scene import GaussianModel, Scene
 from utils.general_utils import safe_state
 from utils.image_utils import psnr, render_net_image
-from utils.loss_utils import l1_loss, ssim
+from utils.loss_utils import l1_loss, loss_cls_3d, mask_entropy_loss, ssim, zero_one_3d_loss, zero_one_loss
+
+torch.set_num_threads(4)
 
 try:
     from torch.utils.tensorboard import SummaryWriter
@@ -33,7 +35,15 @@ except ImportError:
     TENSORBOARD_FOUND = False
 
 
-def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint):
+def training(
+    dataset: ModelParams,
+    opt: OptimizationParams,
+    pipe: PipelineParams,
+    testing_iterations,
+    saving_iterations,
+    checkpoint_iterations,
+    checkpoint,
+):
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset)
     gaussians = GaussianModel(dataset.sh_degree)
@@ -50,9 +60,14 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     iter_end = torch.cuda.Event(enable_timing=True)
 
     viewpoint_stack = None
+    bg_viewpoint_stack = None
     ema_loss_for_log = 0.0
     ema_dist_for_log = 0.0
     ema_normal_for_log = 0.0
+    ema_confidence_for_log = 0.0
+    ema_reg3d_for_log = 0.0
+    ema_zero_one_for_log = 0.0
+    ema_zero_one_3d_for_log = 0.0
 
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
@@ -78,6 +93,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             render_pkg["radii"],
         )
 
+        if pipe.fg_only:
+            render_pkg_fg = render(viewpoint_cam, gaussians, pipe, background, fg_only=True)
+
         gt_image = viewpoint_cam.original_image.cuda()
         Ll1 = l1_loss(image, gt_image)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
@@ -86,15 +104,42 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         lambda_normal = opt.lambda_normal if iteration > 7000 else 0.0
         lambda_dist = opt.lambda_dist if iteration > 3000 else 0.0
 
-        rend_dist = render_pkg["rend_dist"]
-        rend_normal = render_pkg["rend_normal"]
-        surf_normal = render_pkg["surf_normal"]
+        render_aux = render_pkg_fg if pipe.fg_only else render_pkg
+        rend_dist = render_aux["rend_dist"]
+        rend_normal = render_aux["rend_normal"]
+        surf_normal = render_aux["surf_normal"]
         normal_error = (1 - (rend_normal * surf_normal).sum(dim=0))[None]
         normal_loss = lambda_normal * (normal_error).mean()
         dist_loss = lambda_dist * (rend_dist).mean()
 
-        # loss
-        total_loss = loss + dist_loss + normal_loss
+        # confidence loss
+        mask_gt = viewpoint_cam.gt_alpha_mask.cuda()
+        if pipe.rotation:
+            confidence_loss = opt.lambda_confidence * mask_entropy_loss(render_pkg["rend_confidence"], mask_gt)
+        else:
+            confidence_loss = torch.tensor([0.0], device="cuda")
+
+        # 3D consistency loss
+        loss_reg3d = None
+        if pipe.rotation and iteration % opt.reg3d_interval == 0 and iteration > opt.reg3d_from_iter:
+            loss_reg3d = loss_cls_3d(
+                gaussians.get_xyz,
+                torch.cat([gaussians.get_confidence, 1 - gaussians.get_confidence], dim=1),
+                lambda_val=opt.lambda_reg3d,
+            )
+            total_loss = loss + dist_loss + normal_loss + confidence_loss + loss_reg3d
+        else:
+            total_loss = loss + dist_loss + normal_loss + confidence_loss
+
+        loss_zero_one = None
+        if pipe.rotation and iteration > opt.zero_one_from_iter:
+            loss_zero_one = zero_one_loss(render_pkg["rend_confidence"])
+            total_loss += opt.lambda_zero_one * loss_zero_one
+
+        loss_zero_one_3d = None
+        if pipe.rotation and iteration > opt.zero_one_3d_from_iter:
+            loss_zero_one_3d = zero_one_3d_loss(confidence=gaussians.get_confidence)
+            total_loss += opt.lambda_zero_one_3d * loss_zero_one_3d
 
         total_loss.backward()
 
@@ -105,12 +150,20 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
             ema_dist_for_log = 0.4 * dist_loss.item() + 0.6 * ema_dist_for_log
             ema_normal_for_log = 0.4 * normal_loss.item() + 0.6 * ema_normal_for_log
+            ema_confidence_for_log = 0.4 * confidence_loss.item() + 0.6 * ema_confidence_for_log
+            if loss_reg3d:
+                ema_reg3d_for_log = 0.4 * loss_reg3d.item() + 0.6 * ema_reg3d_for_log
+            if loss_zero_one:
+                ema_zero_one_for_log = 0.4 * loss_zero_one.item() + 0.6 * ema_zero_one_for_log
+            if loss_zero_one_3d:
+                ema_zero_one_3d_for_log = 0.4 * loss_zero_one_3d.item() + 0.6 * ema_zero_one_3d_for_log
 
             if iteration % 10 == 0:
                 loss_dict = {
                     "Loss": f"{ema_loss_for_log:.{5}f}",
                     "distort": f"{ema_dist_for_log:.{5}f}",
                     "normal": f"{ema_normal_for_log:.{5}f}",
+                    "confidence": f"{ema_confidence_for_log:.{5}f}",
                     "Points": f"{len(gaussians.get_xyz)}",
                 }
                 progress_bar.set_postfix(loss_dict)
@@ -123,6 +176,10 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if tb_writer is not None:
                 tb_writer.add_scalar("train_loss_patches/dist_loss", ema_dist_for_log, iteration)
                 tb_writer.add_scalar("train_loss_patches/normal_loss", ema_normal_for_log, iteration)
+                tb_writer.add_scalar("train_loss_patches/confidence_loss", ema_confidence_for_log, iteration)
+                tb_writer.add_scalar("train_loss_patches/reg3d_loss", ema_reg3d_for_log, iteration)
+                tb_writer.add_scalar("train_loss_patches/zero_one_loss", ema_zero_one_for_log, iteration)
+                tb_writer.add_scalar("train_loss_patches/zero_one_3d_loss", ema_zero_one_3d_for_log, iteration)
 
             training_report(
                 tb_writer,
@@ -167,36 +224,36 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
                 torch.save((gaussians.capture(), iteration), scene.model_path + "/chkpnt" + str(iteration) + ".pth")
 
-        with torch.no_grad():
-            if network_gui.conn == None:
-                network_gui.try_connect(dataset.render_items)
-            while network_gui.conn != None:
-                try:
-                    net_image_bytes = None
-                    custom_cam, do_training, keep_alive, scaling_modifer, render_mode = network_gui.receive()
-                    if custom_cam != None:
-                        render_pkg = render(custom_cam, gaussians, pipe, background, scaling_modifer)
-                        net_image = render_net_image(render_pkg, dataset.render_items, render_mode, custom_cam)
-                        net_image_bytes = memoryview(
-                            (torch.clamp(net_image, min=0, max=1.0) * 255)
-                            .byte()
-                            .permute(1, 2, 0)
-                            .contiguous()
-                            .cpu()
-                            .numpy()
-                        )
-                    metrics_dict = {
-                        "#": gaussians.get_opacity.shape[0],
-                        "loss": ema_loss_for_log,
-                        # Add more metrics as needed
-                    }
-                    # Send the data
-                    network_gui.send(net_image_bytes, dataset.source_path, metrics_dict)
-                    if do_training and ((iteration < int(opt.iterations)) or not keep_alive):
-                        break
-                except Exception as e:
-                    # raise e
-                    network_gui.conn = None
+        # with torch.no_grad():
+        #     if network_gui.conn == None:
+        #         network_gui.try_connect(dataset.render_items)
+        #     while network_gui.conn != None:
+        #         try:
+        #             net_image_bytes = None
+        #             custom_cam, do_training, keep_alive, scaling_modifer, render_mode = network_gui.receive()
+        #             if custom_cam != None:
+        #                 render_pkg = render(custom_cam, gaussians, pipe, background, scaling_modifer)
+        #                 net_image = render_net_image(render_pkg, dataset.render_items, render_mode, custom_cam)
+        #                 net_image_bytes = memoryview(
+        #                     (torch.clamp(net_image, min=0, max=1.0) * 255)
+        #                     .byte()
+        #                     .permute(1, 2, 0)
+        #                     .contiguous()
+        #                     .cpu()
+        #                     .numpy()
+        #                 )
+        #             metrics_dict = {
+        #                 "#": gaussians.get_opacity.shape[0],
+        #                 "loss": ema_loss_for_log,
+        #                 # Add more metrics as needed
+        #             }
+        #             # Send the data
+        #             network_gui.send(net_image_bytes, dataset.source_path, metrics_dict)
+        #             if do_training and ((iteration < int(opt.iterations)) or not keep_alive):
+        #                 break
+        #         except Exception as e:
+        #             # raise e
+        #             network_gui.conn = None
 
 
 def prepare_output_and_logger(args):
@@ -231,6 +288,8 @@ def training_report(
         tb_writer.add_scalar("train_loss_patches/total_loss", loss.item(), iteration)
         tb_writer.add_scalar("iter_time", elapsed, iteration)
         tb_writer.add_scalar("total_points", scene.gaussians.get_xyz.shape[0], iteration)
+        tb_writer.add_histogram("confidence", scene.gaussians.get_confidence, iteration)
+        tb_writer.add_histogram("opacity", scene.gaussians.get_opacity, iteration)
 
     # Report test and samples of training set
     if iteration in testing_iterations:
@@ -271,11 +330,17 @@ def training_report(
 
                         try:
                             rend_alpha = render_pkg["rend_alpha"]
+                            rend_confidence = render_pkg["rend_confidence"]
                             rend_normal = render_pkg["rend_normal"] * 0.5 + 0.5
                             surf_normal = render_pkg["surf_normal"] * 0.5 + 0.5
                             tb_writer.add_images(
                                 config["name"] + "_view_{}/rend_normal".format(viewpoint.image_name),
                                 rend_normal[None],
+                                global_step=iteration,
+                            )
+                            tb_writer.add_images(
+                                config["name"] + "_view_{}/rend_confidence".format(viewpoint.image_name),
+                                rend_confidence[None],
                                 global_step=iteration,
                             )
                             tb_writer.add_images(
@@ -305,6 +370,11 @@ def training_report(
                                 gt_image[None],
                                 global_step=iteration,
                             )
+                            tb_writer.add_images(
+                                config["name"] + "_view_{}/mask".format(viewpoint.image_name),
+                                viewpoint.gt_alpha_mask[None].detach(),
+                                global_step=iteration,
+                            )
 
                     l1_test += l1_loss(image, gt_image).mean().double()
                     psnr_test += psnr(image, gt_image).mean().double()
@@ -328,6 +398,8 @@ if __name__ == "__main__":
     parser.add_argument("--ip", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=6009)
     parser.add_argument("--detect_anomaly", action="store_true", default=False)
+    parser.add_argument("--test_interval", type=int, default=-1)
+    parser.add_argument("--save_interval", type=int, default=-1)
     parser.add_argument("--test_iterations", nargs="+", type=int, default=[7_000, 30_000])
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[7_000, 30_000])
     parser.add_argument("--quiet", action="store_true")
@@ -342,14 +414,14 @@ if __name__ == "__main__":
     safe_state(args.quiet)
 
     # Start GUI server, configure and run training
-    network_gui.init(args.ip, args.port)
+    # network_gui.init(args.ip, args.port)
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
     training(
         lp.extract(args),
         op.extract(args),
         pp.extract(args),
-        args.test_iterations,
-        args.save_iterations,
+        sorted(args.test_iterations + list(range(args.test_interval, args.iterations, args.test_interval))),
+        sorted(args.save_iterations + list(range(args.save_interval, args.iterations, args.save_interval))),
         args.checkpoint_iterations,
         args.start_checkpoint,
     )

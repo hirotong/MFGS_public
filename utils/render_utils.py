@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import os
+import copy
 import enum
+import os
 import types
 from typing import List, Mapping, Optional, Text, Tuple, Union
-import copy
-from PIL import Image
-import mediapy as media
-from matplotlib import cm
-from tqdm import tqdm
 
+import mediapy as media
+import numpy as np
 import torch
+from matplotlib import cm
+from PIL import Image
+from tqdm import tqdm
 
 
 def normalize(x: np.ndarray) -> np.ndarray:

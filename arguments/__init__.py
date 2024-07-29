@@ -55,6 +55,10 @@ class ModelParams(ParamGroup):
         self._images = "images"
         self._resolution = -1
         self._white_background = False
+        self.rotation = False
+        self.fg_only = False
+        self.mask_level = -1  # -1 means no mask
+        self.apply_mask = False  # Apply mask to the input image
         self.data_device = "cuda"
         self.eval = False
         self.render_items = ["RGB", "Alpha", "Normal", "Depth", "Edge", "Curvature"]
@@ -72,7 +76,17 @@ class PipelineParams(ParamGroup):
         self.compute_cov3D_python = False
         self.depth_ratio = 0.0
         self.debug = False
-        super().__init__(parser, "Pipeline Parameters")
+        super().__init__(
+            parser,
+            "Pipeline Parameters",
+        )
+
+    def extract(self, args):
+        g = super().extract(args)
+        g.rotation = args.rotation
+        g.fg_only = args.fg_only if hasattr(args, "fg_only") else False
+
+        return g
 
 
 class OptimizationParams(ParamGroup):
@@ -86,17 +100,26 @@ class OptimizationParams(ParamGroup):
         self.opacity_lr = 0.05
         self.scaling_lr = 0.005
         self.rotation_lr = 0.001
+        self.confidence_lr = 0.05
         self.percent_dense = 0.01
         self.lambda_dssim = 0.2
         self.lambda_dist = 0.0
         self.lambda_normal = 0.05
+        self.lambda_confidence = 0.05
+        self.lambda_reg3d = 0.0  # 100.0
+        self.lambda_zero_one = 0.0  # 0.001
+        self.lambda_zero_one_3d = 0.0  # 0.5
         self.opacity_cull = 0.05
 
+        self.reg3d_interval = 2
         self.densification_interval = 100
         self.opacity_reset_interval = 3000
         self.densify_from_iter = 500
         self.densify_until_iter = 15_000
         self.densify_grad_threshold = 0.0002
+        self.reg3d_from_iter = 0
+        self.zero_one_from_iter = 0
+        self.zero_one_3d_from_iter = 0
         super().__init__(parser, "Optimization Parameters")
 
 
@@ -121,3 +144,18 @@ def get_combined_args(parser: ArgumentParser):
         if v != None:
             merged_dict[k] = v
     return Namespace(**merged_dict)
+
+
+def get_config_args(model_path):
+    try:
+        cfgfilepath = os.path.join(model_path, "cfg_args")
+        print("Looking for config file in", cfgfilepath)
+        with open(cfgfilepath) as cfg_file:
+            print("Config file found: {}".format(cfgfilepath))
+            cfgfile_string = cfg_file.read()
+    except TypeError:
+        print("Config file not found at")
+        pass
+    args_cfgfile = eval(cfgfile_string)
+
+    return args_cfgfile

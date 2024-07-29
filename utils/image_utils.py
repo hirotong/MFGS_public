@@ -9,9 +9,10 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
-import torch
 import matplotlib.pyplot as plt
+import torch
 import torch.nn.functional as F
+from matplotlib import colormaps
 
 
 def mse(img1, img2):
@@ -36,7 +37,8 @@ def gradient_map(image):
 
 
 def colormap(map, cmap="turbo"):
-    colors = torch.tensor(plt.cm.get_cmap(cmap).colors).to(map.device)
+    # colors = torch.tensor(plt.cm.get_cmap(cmap).colors).to(map.device)
+    colors = torch.tensor(colormaps[cmap].colors).to(map.device)
     map = (map - map.min()) / (map.max() - map.min())
     map = (map * 255).round().long().squeeze()
     map = colors[map].permute(2, 0, 1)
