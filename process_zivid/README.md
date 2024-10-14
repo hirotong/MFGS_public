@@ -43,3 +43,8 @@ python process_zivid/post_process.py -d <path/to/dataset> -s mask -m <path/to/ma
 ```
 > Note: this is not essential if you only want to run $s^2gs$. 
 > 
+
+## Step 6 TSDF integration
+``` bash
+python process_zivid/post_process.py -d <path/to/dataset> -s fusion
+```
