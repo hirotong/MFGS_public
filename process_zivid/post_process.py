@@ -125,10 +125,10 @@ def get_pcds_all(arg):
 
         ply_file = os.path.join(pcd_dir, f"{cam_id}_{img_id}.ply")
         xyz = load_ply(ply_file)
-        xyz = xyz / 1000.0
+        # xyz = xyz / 1000.0
 
-        mask = np.logical_and(xyz[..., 2] > 0.200, xyz[..., 2] < 0.800)  # roughly filter the points
-        xyz = xyz[mask]
+        # mask = np.logical_and(xyz[..., 2] > 0.200, xyz[..., 2] < 0.800)  # roughly filter the points
+        # xyz = xyz[mask]
 
         c2w = np.linalg.inv(cameras[cam])
 
@@ -246,9 +246,7 @@ def reformat_pose(args):
     # pose_files = {}
     # for i in range(1, 5):
     #     cam_id = f"JTN00{i}"
-    #     pose_dict[cam_id] = []
-    #     pose_files[cam_id] = sorted(glob(os.path.join(pose_folder, f"{cam_id}*.txt")))
-    #     for pose_file in pose_files[cam_id]:
+    #     pose_dict[cam_id] = []print(os.path.join(args.data_folder, case_name + ".mp4"))
     #         pose = np.loadtxt(pose_file)
     #         pose_dict[cam_id].append(pose)
     #     pose_dict[cam_id] = np.stack(pose_dict[cam_id], axis=0)

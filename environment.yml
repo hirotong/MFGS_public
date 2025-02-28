@@ -19,8 +19,7 @@ dependencies:
       - einops==0.8.0
       - ffmpy==0.3.2
       - h5py==3.11.0
-      - imageio==2.34.1
-      - imageio-ffmpeg==0.5.1
+      - imageio[ffmpeg]
       - lazy-loader==0.4
       - lpips==0.1.4
       - matplotlib==3.7.5
@@ -46,3 +45,5 @@ dependencies:
       - tqdm==4.66.2
       - transforms3d==0.4.1
       - trimesh==4.3.2
+      - rembg[cpu]
+      - mediapy

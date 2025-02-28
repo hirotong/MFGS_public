@@ -18,7 +18,7 @@ import numpy as np
 import scipy
 import zivid
 from PIL import Image
-
+import sys
 
 def _point_cloud_to_cv_z(point_cloud: zivid.PointCloud) -> np.ndarray:
     """Get depth map from frame.
@@ -100,9 +100,15 @@ def _flatten_point_cloud(point_cloud: zivid.PointCloud, lower, upper) -> np.ndar
     return nd, mask
 
 
-data_dir = "/home/mut027/Zivid/data27_Mar1_noise_model/Dino"
-lower = 300
-upper = 800
+if len(sys.argv) <= 1:
+    print("Usage: python Zdf_conv_dataset2.py <dataset_dir>")
+    print("where <dataset_dir> as a 'raw' folder that contains .zdf files")
+    sys.exit(1)
+
+data_dir = sys.argv[1].rstrip('/') # Remove trailing slash if present
+# lower and upper are the depth range to be used for the point cloud, in the new version of zdf file, the depth unit is m, while the old version is mm
+lower = 0
+upper = 10
 
 zdffiles = sorted(glob.glob(os.path.join(data_dir, "*.zdf")))
 dest_folder_pc = os.path.join(data_dir + "_conv/", "pc/")
@@ -133,29 +139,30 @@ for zdffile in zdffiles:
         print(f"Reading point cloud from file: {zdffile}")
         frame = zivid.Frame(zdffile)
         point_cloud = frame.point_cloud()
-        _convert_2_ply(frame, os.path.join(dest_folder_pc, os.path.basename(zdffile).rsplit(".", 1)[0]))
+        cam_id, img_id = os.path.basename(zdffile).rsplit(".", 1)[0].split("_")[-2], os.path.basename(zdffile).rsplit(".", 1)[0].split("_")[-1]
+        _convert_2_ply(frame, os.path.join(dest_folder_pc, f"{cam_id}_{img_id}"))
 
         print("Converting to BGR image in OpenCV format")
         bgr = _point_cloud_to_cv_bgr(point_cloud)
-        cv2.imwrite(os.path.join(dest_folder_rgb, os.path.basename(zdffile).rsplit(".", 1)[0] + ".png"), bgr)
+        cv2.imwrite(os.path.join(dest_folder_rgb, f"{cam_id}_{img_id}.png"), bgr)
 
         print("Converting to Depth map in OpenCV format")
         z_color_map = _point_cloud_to_cv_z(point_cloud)
-        cv2.imwrite(os.path.join(dest_folder_depth, os.path.basename(zdffile).rsplit(".", 1)[0] + ".png"), z_color_map)
+        cv2.imwrite(os.path.join(dest_folder_depth, f"{cam_id}_{img_id}.png"), z_color_map)
 
         nd, mask = _flatten_point_cloud(point_cloud, lower, upper)
-        np.save(os.path.join(dest_folder_depth_raw, os.path.basename(zdffile).rsplit(".", 1)[0] + ".npy"), nd)
+        np.save(os.path.join(dest_folder_depth_raw, f"{cam_id}_{img_id}.npy"), nd)
 
         mask = scipy.ndimage.morphology.binary_fill_holes(mask)
         mask = scipy.ndimage.binary_dilation(mask, structure=np.ones((12, 12)))
         mask_img = Image.fromarray(mask.astype(dtype=bool))
 
-        mask_img.save(os.path.join(dest_folder_fg_mask, os.path.basename(zdffile).rsplit(".", 1)[0] + ".bmp"))
+        mask_img.save(os.path.join(dest_folder_fg_mask, f"{cam_id}_{img_id}.bmp"))
 
-        nd16 = (nd * 10).astype(np.uint16)
+        nd16 = (nd * 10000).astype(np.uint16)
         nd16_image = Image.fromarray(nd16, mode="I;16")
         nd16_image.save(
-            os.path.join(dest_folder_depth_16bit_masked, os.path.basename(zdffile).rsplit(".", 1)[0] + ".png")
+            os.path.join(dest_folder_depth_16bit_masked, f"{cam_id}_{img_id}.png")
         )
 
         mask3 = np.expand_dims(mask, axis=2).astype(np.uint8)
@@ -164,15 +171,15 @@ for zdffile in zdffiles:
 
         bgr_mask = np.multiply(mask3d, bgr)
         cv2.imwrite(
-            os.path.join(dest_folder_rgb_masked, os.path.basename(zdffile).rsplit(".", 1)[0] + ".png"), bgr_mask
+            os.path.join(dest_folder_rgb_masked, f"{cam_id}_{img_id}.png"), bgr_mask
         )
 
         bgr_mask = bgr_mask + 255
         cv2.imwrite(
-            os.path.join(dest_folder_rgb_masked_white, os.path.basename(zdffile).rsplit(".", 1)[0] + ".png"), bgr_mask
+            os.path.join(dest_folder_rgb_masked_white, f"{cam_id}_{img_id}.png"), bgr_mask
         )
 
         normals = point_cloud.copy_data("normals")
-        np.save(os.path.join(dest_folder_normals_raw, os.path.basename(zdffile).rsplit(".", 1)[0] + ".npy"), normals)
+        np.save(os.path.join(dest_folder_normals_raw, f"{cam_id}_{img_id}.npy"), normals)
 
         z = 1
