@@ -22,7 +22,7 @@ from utils.pose_utils import get_cam_center, normalize_poses
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="detect markers and corners of charuco board, estimate pose of charuco" "board", add_help=False
+        description="detect markers and corners of charuco board, estimate pose of charucoboard", add_help=False
     )
     parser.add_argument("-H", "--help", help="show help", action="store_true", dest="show_help")
 

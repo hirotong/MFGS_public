@@ -36,13 +36,15 @@ We transform the camera poses accroding to the pointcloud of the object, so that
 
 ## [Optional] Step 5 Process the masks and save
 
+Install additional libraries according to [Track-Anything](https://github.com/gaomingqi/Track-Anything). We suggest you to install `gradio==3.41.2` for the [current commit](https://github.com/gaomingqi/Track-Anything/tree/e6e159273790974e04eeea6673f1f93c035005fc).
+
 We adapt [Track-Anything](https://github.com/gaomingqi/Track-Anything) to generate object masks. After that, you can process the masks as following:
 
 ``` bash
 python process_zivid/post_process.py -d <path/to/dataset> -s mask -m <path/to/masks>
 ```
 > Note: this is not essential if you only want to run $s^2gs$. 
-> 
+
 
 ## Step 6 TSDF integration
 ``` bash

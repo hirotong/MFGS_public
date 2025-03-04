@@ -12,13 +12,14 @@
 
 import glob
 import os
+import sys
 
 import cv2
 import numpy as np
 import scipy
 import zivid
 from PIL import Image
-import sys
+
 
 def _point_cloud_to_cv_z(point_cloud: zivid.PointCloud) -> np.ndarray:
     """Get depth map from frame.
@@ -105,7 +106,7 @@ if len(sys.argv) <= 1:
     print("where <dataset_dir> as a 'raw' folder that contains .zdf files")
     sys.exit(1)
 
-data_dir = sys.argv[1].rstrip('/') # Remove trailing slash if present
+data_dir = sys.argv[1].rstrip("/")  # Remove trailing slash if present
 # lower and upper are the depth range to be used for the point cloud, in the new version of zdf file, the depth unit is m, while the old version is mm
 lower = 0
 upper = 10
@@ -139,7 +140,10 @@ for zdffile in zdffiles:
         print(f"Reading point cloud from file: {zdffile}")
         frame = zivid.Frame(zdffile)
         point_cloud = frame.point_cloud()
-        cam_id, img_id = os.path.basename(zdffile).rsplit(".", 1)[0].split("_")[-2], os.path.basename(zdffile).rsplit(".", 1)[0].split("_")[-1]
+        cam_id, img_id = (
+            os.path.basename(zdffile).rsplit(".", 1)[0].split("_")[-2],
+            os.path.basename(zdffile).rsplit(".", 1)[0].split("_")[-1],
+        )
         _convert_2_ply(frame, os.path.join(dest_folder_pc, f"{cam_id}_{img_id}"))
 
         print("Converting to BGR image in OpenCV format")
@@ -161,23 +165,17 @@ for zdffile in zdffiles:
 
         nd16 = (nd * 10000).astype(np.uint16)
         nd16_image = Image.fromarray(nd16, mode="I;16")
-        nd16_image.save(
-            os.path.join(dest_folder_depth_16bit_masked, f"{cam_id}_{img_id}.png")
-        )
+        nd16_image.save(os.path.join(dest_folder_depth_16bit_masked, f"{cam_id}_{img_id}.png"))
 
         mask3 = np.expand_dims(mask, axis=2).astype(np.uint8)
         mask3d = np.append(mask3, mask3, axis=2)
         mask3d = np.append(mask3d, mask3, axis=2)
 
         bgr_mask = np.multiply(mask3d, bgr)
-        cv2.imwrite(
-            os.path.join(dest_folder_rgb_masked, f"{cam_id}_{img_id}.png"), bgr_mask
-        )
+        cv2.imwrite(os.path.join(dest_folder_rgb_masked, f"{cam_id}_{img_id}.png"), bgr_mask)
 
         bgr_mask = bgr_mask + 255
-        cv2.imwrite(
-            os.path.join(dest_folder_rgb_masked_white, f"{cam_id}_{img_id}.png"), bgr_mask
-        )
+        cv2.imwrite(os.path.join(dest_folder_rgb_masked_white, f"{cam_id}_{img_id}.png"), bgr_mask)
 
         normals = point_cloud.copy_data("normals")
         np.save(os.path.join(dest_folder_normals_raw, f"{cam_id}_{img_id}.npy"), normals)

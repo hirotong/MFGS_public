@@ -39,6 +39,7 @@ def read_camera_parameters(filename):
 #         print("Calibration issue. Remove ./calibration.pckl and recalibrate your camera with CalibrateCamera.py.")
 #         exit()
 
+
 def matchImagePoints(charuco_board, charuco_corners, charuco_ids):
     objPoints = []
     imgPoints = []
@@ -53,7 +54,7 @@ def matchImagePoints(charuco_board, charuco_corners, charuco_ids):
 def main():
     # parse command line options
     parser = argparse.ArgumentParser(
-        description="detect markers and corners of charuco board, estimate pose of charuco" "board", add_help=False
+        description="detect markers and corners of charuco board, estimate pose of charucoboard", add_help=False
     )
     parser.add_argument("-H", "--help", help="show help", action="store_true", dest="show_help")
 
@@ -113,13 +114,12 @@ def main():
         dictionary=ARUCO_DICT,
     )
     CHARUCO_PARAMETERS = aruco.CharucoParameters()
-    CHARUCO_PARAMETERS.tryRefineMarkers  = True
+    CHARUCO_PARAMETERS.tryRefineMarkers = True
     CHARUCO_PARAMETERS.cameraMatrix = cam_matrix
     CHARUCO_PARAMETERS.distCoeffs = dist_coeffs
     CHARUCO_DETECTOR_PARAMETERS = aruco.DetectorParameters()
     CHARUCO_DETECTOR_PARAMETERS.cornerRefinementMethod = aruco.CORNER_REFINE_SUBPIX
     charuco_detector = aruco.CharucoDetector(CHARUCO_BOARD, CHARUCO_PARAMETERS, CHARUCO_DETECTOR_PARAMETERS)
-
 
     # Create vectors we'll be using for rotations and translations for postures
     rvecs, tvecs = None, None

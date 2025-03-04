@@ -1,14 +1,12 @@
-conda create -n s2gs python=3.8
-conda activate s2gs
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-
-
 # <img src="assets/pikachu_surprised_loop.gif" alt="logo" style="height: 1em;"> S$^2$GS: Self-supervised Gaussian Segmentation for 3D Reconstruction of Moving Object
 
 <!-- [Project page](https://surfsplatting.github.io/) | [Paper](https://arxiv.org/pdf/2403.17888) | [Video](https://www.youtube.com/watch?v=oaHCtB6yiKU) | [Surfel Rasterizer (CUDA)](https://github.com/hbb1/diff-surfel-rasterization) | [Surfel Rasterizer (Python)](https://colab.research.google.com/drive/1qoclD7HJ3-o0O1R8cvV3PxLhoDCMsH8W?usp=sharing) | [DTU+COLMAP (3.5GB)](https://drive.google.com/drive/folders/1SJFgt8qhQomHX55Q4xSvYE2C6-8tFll9) | [SIBR Viewer Pre-built for Windows](https://drive.google.com/file/d/1DRFrtFUfz27QvQKOWbYXbRS2o2eSgaUT/view?usp=sharing)<br> -->
 
 
-![Teaser image](assets/ACCV2024_First%20figure.png)
+<!-- ![Teaser image](assets/ACCV2024_First%20figure.png) -->
+<div align="center">
+  <img src="assets/ACCV2024_First figure.png">
+</div>
 
 This repo contains the official implementation for the paper "S$^2$GS: Self-supervised Gaussian Segmentation for 3D Reconstruction of Moving Object".
 
@@ -34,7 +32,7 @@ python view.py -s <path to COLMAP or NeRF Synthetic dataset> -m <path to trained
 
 ```bash
 # download
-git clone https://github.com/hbb1/2d-gaussian-splatting.git --recursive
+git clone https://github.com:hirotong/Self-supervisedGaussianSplatting.git --recursive
 
 # if you already clone the repo, you can initialize the submodules by
 git submodule update --init --recursive
