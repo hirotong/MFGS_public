@@ -1,4 +1,4 @@
-name: s2gs
+name: mfgs
 channels:
   - pytorch
   - nvidia
