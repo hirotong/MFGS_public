@@ -56,6 +56,33 @@ cd ../simple-knn
 pip install .
 ```
 
+### Alternative: Installation with `uv` (Faster)
+
+If you have [uv](https://github.com/astral-sh/uv) installed, you can set up the environment much faster:
+
+```bash
+# Create and activate venv
+uv venv --python 3.8
+source .venv/bin/activate
+
+# Install main dependencies
+uv pip install -r requirements.txt
+
+# Install pytorch3d (example for CUDA 11.8)
+uv pip install "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.4"
+
+# Install nvdiffrast (requires --no-build-isolation)
+uv pip install git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation
+
+# install 2dgs rasterizer and other submodules
+cd submodules/diff-surfel-rasterization
+uv pip install .
+cd ../simple-knn
+uv pip install .
+```
+> **Note:** Compiling the submodules still requires a compatible compiler (GCC 11) and system headers (like `libcrypt`). If you are on a modern Linux (e.g. Ubuntu 24.04), we recommend using the Conda approach above as it handles these dependencies automatically.
+
+
 ## Data preparation
 
 Download the [Real](https://drive.google.com/file/d/1glBuy4Zc1Oy5RoR3DbBznKibU340RfCV/view?usp=sharing) and [Synthetic](https://drive.google.com/file/d/168zTU4n_yNdE4Rz-_6ip1ggdXybH6E1Y/view?usp=sharing) dataset from [Google Drive](https://drive.google.com/drive/folders/1eqllCExPDLphJK6cM33iDTZgeNOxmmNB?usp=sharing) and uncompress the dataset to your prefered location.
