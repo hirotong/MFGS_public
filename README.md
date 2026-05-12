@@ -34,15 +34,22 @@ python view.py -s <path to COLMAP or NeRF Synthetic dataset> -m <path to trained
 # download
 git clone https://github.com:hirotong/Self-supervisedGaussianSplatting.git --recursive
 
-# if you already clone the repo, you can initialize the submodules by
+# initialize the submodules
 git submodule update --init --recursive
 
-# if you have an environment used for 3dgs, use it
-# if not, create a new environment
+# create and activate the environment
 conda env create --file environment.yml
-conda activate s2gs
+conda activate mfgs
 
-# install 2dgs rasterizer
+# install nvdiffrast (requires --no-build-isolation)
+pip install git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation
+
+# install 2dgs rasterizer and other submodules
+# we set CC/CXX to the conda compilers to ensure compatibility with CUDA 11.8
+export CC=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gcc
+export CXX=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-g++
+export CPATH=$CONDA_PREFIX/include:$CPATH
+
 cd submodules/diff-surfel-rasterization
 pip install .
 cd ../simple-knn
