@@ -65,22 +65,25 @@ If you have [uv](https://github.com/astral-sh/uv) installed, you can set up the 
 uv venv --python 3.8
 source .venv/bin/activate
 
-# Install main dependencies
-uv pip install -r requirements.txt
+# Install main dependencies (with index strategy for pytorch)
+uv pip install -r requirements.txt --index-strategy unsafe-best-match
 
-# Install pytorch3d (example for CUDA 11.8)
-uv pip install "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.4"
+# Install pytorch3d
+uv pip install "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.4" --no-build-isolation
 
 # Install nvdiffrast (requires --no-build-isolation)
 uv pip install git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation
 
 # install 2dgs rasterizer and other submodules
+# Note: if your system GCC is > 11, you may need to use gcc-11/g++-11
+# export CC=gcc-11
+# export CXX=g++-11
+
 cd submodules/diff-surfel-rasterization
-uv pip install .
+uv pip install . --no-build-isolation
 cd ../simple-knn
-uv pip install .
+uv pip install . --no-build-isolation
 ```
-> **Note:** Compiling the submodules still requires a compatible compiler (GCC 11) and system headers (like `libcrypt`). If you are on a modern Linux (e.g. Ubuntu 24.04), we recommend using the Conda approach above as it handles these dependencies automatically.
 
 
 ## Data preparation
