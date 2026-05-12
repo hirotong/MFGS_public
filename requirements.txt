@@ -1,0 +1,41 @@
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch==2.0.1
+torchvision==0.15.2
+typing_extensions==4.9.0
+pillow
+fvcore
+iopath
+ipykernel
+pyopengl
+e3nn==0.5.1
+einops==0.8.0
+ffmpy==0.3.2
+h5py==3.11.0
+imageio[ffmpeg]
+lazy-loader==0.4
+lpips==0.1.4
+matplotlib==3.7.5
+numba==0.58.1
+open3d==0.18.0
+opencv-python-headless==4.3.0.38
+pandas==2.0.3
+plotly==5.22.0
+plyfile==1.0.3
+protobuf==5.26.1
+pyglet==2.0.15
+pyopengl==3.1.0
+pyrender==0.1.45
+pytransform3d==3.5.0
+rich==13.7.1
+scikit-image==0.21.0
+scikit-learn==1.3.2
+scikit-spatial==7.2.0
+scipy==1.10.1
+tensorboard==2.14.0
+tqdm==4.66.2
+transforms3d==0.4.1
+trimesh==4.3.2
+rembg[cpu]
+mediapy
+# pytorch3d needs to be installed manually or from specific wheels
+# nvdiffrast needs to be installed with --no-build-isolation
