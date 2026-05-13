@@ -7,7 +7,11 @@
 import argparse
 import json
 import os
+import sys
 from glob import glob
+
+# Add the project root to sys.path to import utils
+sys.path.append(os.getcwd())
 
 import cv2
 import imageio.v2 as iio
@@ -202,7 +206,8 @@ def reformat_pose(args):
     frames = []
 
     for cam_id in camera_dict.keys():
-        ref_w2c = camera_dict[cam_id]["000"]
+        ref_img_id = sorted(camera_dict[cam_id].keys())[0]
+        ref_w2c = camera_dict[cam_id][ref_img_id]
         ref_c2w = np.linalg.inv(ref_w2c)
 
         w2cs_ = np.stack(list(camera_dict[cam_id].values()), axis=0)

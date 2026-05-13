@@ -120,9 +120,12 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
                 "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
             )
 
-        image_path = os.path.join(images_folder, os.path.basename(extr.name))
+        image_path = os.path.join(images_folder, extr.name)
         image_name = os.path.basename(image_path).split(".")[0]
         image = Image.open(image_path)
+
+        # Create a dummy alpha mask if none exists
+        alpha_mask = Image.fromarray(np.ones((height, width), dtype=np.uint8) * 255, "L")
 
         cam_info = CameraInfo(
             uid=uid,
@@ -135,6 +138,10 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
             image_name=image_name,
             width=width,
             height=height,
+            normal_image=None,
+            alpha_mask=alpha_mask,
+            obj_R=np.eye(3),
+            obj_T=np.zeros(3),
         )
         cam_infos.append(cam_info)
     sys.stdout.write("\n")
@@ -177,16 +184,23 @@ def storePly(path, xyz, rgb):
 
 
 def readColmapSceneInfo(path, images, eval, llffhold=8):
+    sparse_path = os.path.join(path, "sparse/0")
+    if not os.path.exists(os.path.join(sparse_path, "images.bin")) and not os.path.exists(os.path.join(sparse_path, "images.txt")):
+        sparse_path = os.path.join(path, "sparse")
+
     try:
-        cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
-        cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
-        cam_extrinsics = read_extrinsics_binary(cameras_extrinsic_file)
-        cam_intrinsics = read_intrinsics_binary(cameras_intrinsic_file)
+        cameras_extrinsic_file = os.path.join(sparse_path, "images.bin")
+        cameras_intrinsic_file = os.path.join(sparse_path, "cameras.bin")
+        if os.path.exists(cameras_extrinsic_file):
+            cam_extrinsics = read_extrinsics_binary(cameras_extrinsic_file)
+            cam_intrinsics = read_intrinsics_binary(cameras_intrinsic_file)
+        else:
+            cameras_extrinsic_file = os.path.join(sparse_path, "images.txt")
+            cameras_intrinsic_file = os.path.join(sparse_path, "cameras.txt")
+            cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
+            cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
     except:
-        cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.txt")
-        cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.txt")
-        cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
-        cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
+        assert False, f"Could not find COLMAP sparse model in {sparse_path}"
 
     reading_dir = "images" if images == None else images
     cam_infos_unsorted = readColmapCameras(
@@ -205,9 +219,9 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
 
     nerf_normalization = getNerfppNorm(train_cam_infos)
 
-    ply_path = os.path.join(path, "sparse/0/points3D.ply")
-    bin_path = os.path.join(path, "sparse/0/points3D.bin")
-    txt_path = os.path.join(path, "sparse/0/points3D.txt")
+    ply_path = os.path.join(sparse_path, "points3D.ply")
+    bin_path = os.path.join(sparse_path, "points3D.bin")
+    txt_path = os.path.join(sparse_path, "points3D.txt")
     if not os.path.exists(ply_path):
         print("Converting point3d.bin to .ply, will happen only the first time you open the scene.")
         try:
@@ -226,6 +240,8 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
         test_cameras=test_cam_infos,
         nerf_normalization=nerf_normalization,
         ply_path=ply_path,
+        train_vcameras=train_cam_infos,
+        test_vcameras=test_cam_infos,
     )
     return scene_info
 
@@ -815,6 +831,16 @@ def readRotNerfSyntheticInfo(
 
 def readRotRealInfo(path, white_background, eval, extension=".png", mask_level=-1, apply_mask=False) -> SceneInfo:
     print("Reading  Transforms")
+
+    # Detect extension
+    img_folder = os.path.join(path, "images")
+    if os.path.exists(img_folder):
+        imgs = os.listdir(img_folder)
+        if len(imgs) > 0:
+            for img in imgs:
+                if img.lower().endswith((".png", ".jpg", ".jpeg")):
+                    extension = "." + img.split(".")[-1]
+                    break
 
     train_cam_infos, train_vcam_infos, scale = readCamerasFromRotRealTransforms(
         path, "transforms_train.json", white_background, extension, mask_level, apply_mask
