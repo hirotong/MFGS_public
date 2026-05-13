@@ -111,6 +111,32 @@ where the `<case>.mp4` is a video we create for mask extraction with [Track-Anyt
 
 Please follow the [instuction](process_zivid/README.md) to prepare your own zivid dataset.
 
+### Prepare your own dataset (COLMAP)
+
+You can use COLMAP datasets directly with MFGS. For best results with moving object separation, we recommend the following workflow:
+
+1. **Direct Training**:
+   You can run training directly on a COLMAP `dense` or `sparse` folder:
+   ```bash
+   python train.py -s <path/to/colmap/dense> --rotation
+   ```
+
+2. **Reformatted Pipeline (Recommended for Turntable Objects)**:
+   To align the coordinate system to the object center and enable high-quality separation, use the conversion script:
+   ```bash
+   # Convert COLMAP to Zivid/RotReal format
+   python process_colmap/colmap_to_zivid.py -s <path/to/colmap/dense> -o data/my_dataset
+   
+   # [Manual] Open data/my_dataset/points3D.ply in CloudCompare, 
+   # crop to object only, and save as data/my_dataset/point_cloud_processed.ply
+   
+   # Reformat poses based on the cropped point cloud
+   python process_zivid/post_process.py -d data/my_dataset -s reformat
+   
+   # Train
+   python train.py -s data/my_dataset --rotation
+   ```
+
 ## Training
 MFGS separates the turning object from the static background without masks. Train with the settings used in `scripts/ssgs/`.
 
