@@ -12,6 +12,7 @@
 import json
 import os
 import sys
+from hashlib import sha1
 from pathlib import Path
 from typing import NamedTuple
 
@@ -180,7 +181,21 @@ def storePly(path, xyz, rgb):
     # Create the PlyData object and write to file
     vertex_element = PlyElement.describe(elements, "vertex")
     ply_data = PlyData([vertex_element])
+    parent_dir = os.path.dirname(path)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
     ply_data.write(path)
+
+
+def getColmapPlyPath(sparse_path):
+    source_ply_path = os.path.join(sparse_path, "points3D.ply")
+    if os.path.exists(source_ply_path) or os.access(sparse_path, os.W_OK):
+        return source_ply_path
+
+    cache_key = sha1(os.path.abspath(source_ply_path).encode("utf-8")).hexdigest()[:12]
+    cache_dir = os.path.join(os.getcwd(), "output", ".cache", "colmap", cache_key)
+    print(f"Using writable cache for COLMAP point cloud: {cache_dir}")
+    return os.path.join(cache_dir, "points3D.ply")
 
 
 def readColmapSceneInfo(path, images, eval, llffhold=8):
@@ -219,7 +234,7 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
 
     nerf_normalization = getNerfppNorm(train_cam_infos)
 
-    ply_path = os.path.join(sparse_path, "points3D.ply")
+    ply_path = getColmapPlyPath(sparse_path)
     bin_path = os.path.join(sparse_path, "points3D.bin")
     txt_path = os.path.join(sparse_path, "points3D.txt")
     if not os.path.exists(ply_path):
