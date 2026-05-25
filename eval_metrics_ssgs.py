@@ -40,12 +40,27 @@ def get_mesh_eval_points(scene: Scene, source_dir):
     for cam in viewpoints:
         rgb = cam.original_image
         image_name = cam.image_name
-        depth_path = os.path.join(source_dir, "images", f"{image_name}_depth.png")
+        depth_candidates = [
+            os.path.join(source_dir, "images", f"{image_name}_depth.png"),
+            os.path.join(source_dir, "depth", f"{image_name}.png"),
+            os.path.join(source_dir, "depth", f"{image_name}_depth.png"),
+        ]
+        depth_path = next((path for path in depth_candidates if os.path.exists(path)), None)
+        if depth_path is None:
+            raise FileNotFoundError(f"Unable to locate depth map for {image_name}: tried {depth_candidates}")
 
         depth_img = Image.open(depth_path)
         depth = np.asarray(depth_img) / 1000.0
 
-        depth = torch.from_numpy(depth).unsqueeze(0).float()
+        depth = torch.from_numpy(depth).unsqueeze(0).unsqueeze(0).float()
+        if depth.shape[-2:] != (cam.image_height, cam.image_width):
+            depth = torch.nn.functional.interpolate(
+                depth,
+                size=(cam.image_height, cam.image_width),
+                mode="bilinear",
+                align_corners=False,
+            )
+        depth = depth.squeeze(0)
 
         rgbs.append(rgb)
         depths.append(depth)
