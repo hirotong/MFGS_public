@@ -75,16 +75,38 @@ where the `<case>.mp4` is a video we create for mask extraction with [Track-Anyt
 Please follow the [instuction](process_zivid/README.md) to prepare your own zivid dataset.
 
 ## Training
-To train a scene, simply use
+MFGS separates the turning object from the static background without masks. Train with the settings used in `scripts/ssgs/`.
+
+Synthetic scenes:
 ```bash
-python train.py -s <path to dataset> --rotation
+python train.py -s <path to dataset> -m <output path> --eval -w --rotation \
+    --lambda_confidence 0.0 --lambda_reg3d 50.0 \
+    --lambda_zero_one 0.01 --lambda_zero_one_3d 0.01 \
+    --reg3d_from_iter 5000
 ```
+Real (Zivid) scenes:
+```bash
+python train.py -s <path to dataset> -m <output path> --eval -w --rotation \
+    --lambda_confidence 0.0 --lambda_reg3d 50.0 \
+    --lambda_zero_one 0.1 --lambda_zero_one_3d 0.1 \
+    --reg3d_from_iter 5000 --zero_one_from_iter 5000 --zero_one_3d_from_iter 5000
+```
+
+> [!IMPORTANT]
+> Do not train with `--rotation` and the code defaults alone. Without masks, the default `--lambda_confidence 0.05` supervises the confidence with an all-ones target and labels every pixel as foreground. Keep it at `0.0` for mask-free training, and raise it only together with real foreground masks (`--mask_level`).
+
+Things the mask-free split relies on:
+- **A static background with texture.** The split comes from motion: Gaussians that follow the turntable are foreground, Gaussians that stay put are background. A plain, untextured backdrop looks the same at every rotation, so it cannot be separated without masks.
+- **The object scale.** For your own data, `scale` in `transforms_*.json` is the mean distance of the object-only point cloud (crop it to the object first) from its centroid, as written by `process_zivid/post_process.py`. The foreground Gaussians are initialised in a cube of half-size `4 * scale` and the background on a sphere of radius `16 * scale`, which should sit just outside the cameras.
+
 <details><summary><span style="font-weight: bold;">Commandline arguments for regularizations </span></summary>
 
 ```bash
 --lambda_reg3d  # control the consistency loss
 --lambda_zero_one   # control the 2D segmentation regularization
 --lambda_zero_one_3d    # control the 3D segmentation regularization
+--lambda_confidence # confidence supervision from foreground masks; keep 0.0 without masks
+--confidence_thresh # confidence above this counts as foreground (default 0.8)
 ```
 The followings are from [2DGS](https://github.com/hbb1/2d-gaussian-splatting) paper. 
 ```bash
