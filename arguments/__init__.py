@@ -76,6 +76,7 @@ class PipelineParams(ParamGroup):
         self.compute_cov3D_python = False
         self.depth_ratio = 0.0
         self.debug = False
+        self.confidence_thresh = 0.8  # confidence above this counts as foreground
         super().__init__(
             parser,
             "Pipeline Parameters",

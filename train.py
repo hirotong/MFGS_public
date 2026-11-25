@@ -195,7 +195,7 @@ def training(
             )
             if iteration in saving_iterations:
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
-                scene.save(iteration)
+                scene.save(iteration, pipe.confidence_thresh)
 
             # Densification
             if iteration < opt.densify_until_iter:

@@ -123,7 +123,8 @@ def render(
     if pipe.rotation:
         # Apply transformations
         trans = GaussianTransformUtils()
-        confidence_mask = (confidence > 0.8).squeeze(-1)
+        # one threshold for "foreground": SH/rotation switch, fg_only render and the fg/bg ply export
+        confidence_mask = (confidence > getattr(pipe, "confidence_thresh", 0.8)).squeeze(-1)
 
         rotation_matrix = torch.from_numpy(viewpoint_camera.obj_R).float().cuda()
         translation = torch.from_numpy(viewpoint_camera.obj_T).float().cuda()
@@ -149,6 +150,8 @@ def render(
             rotations = rotations[confidence_mask]
             colors_precomp = colors_precomp[confidence_mask] if colors_precomp is not None else None
             cov3D_precomp = cov3D_precomp[confidence_mask] if cov3D_precomp is not None else None
+            # keep the confidence aligned with the filtered Gaussians for the confidence render below
+            confidence = confidence[confidence_mask]
 
     rendered_image, radii, allmap = rasterizer(
         means3D=means3D,
@@ -176,6 +179,8 @@ def render(
         debug=False,
         # pipe.debug
     )
+    # render the confidence map on a black background, independent of bg_color (e.g. -w)
+    rasterizer = GaussianRasterizer(raster_settings=raster_settings)
 
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.

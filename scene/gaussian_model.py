@@ -266,7 +266,7 @@ class GaussianModel:
             l.append("rot_{}".format(i))
         return l
 
-    def save_ply(self, path):
+    def save_ply(self, path, confidence_thresh=0.8):
         mkdir_p(os.path.dirname(path))
 
         xyz = self._xyz.detach().cpu().numpy()
@@ -287,7 +287,8 @@ class GaussianModel:
         PlyData([el]).write(path)
 
         dtype_gs = [(attribute, "f4") for attribute in self.construct_list_of_gs_attributes()]
-        fg_mask = (self.get_confidence > 0.5).squeeze(-1).detach().cpu().numpy()
+        # same threshold as the renderer, so the exported split matches the fg_only render
+        fg_mask = (self.get_confidence > confidence_thresh).squeeze(-1).detach().cpu().numpy()
 
         scale_3d = np.concatenate([scale, np.zeros((scale.shape[0], 1))], axis=1)
         gs_attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale_3d, rotation), axis=1)
@@ -297,7 +298,7 @@ class GaussianModel:
         fg_el = PlyElement.describe(fg_elements, "vertex")
         PlyData([fg_el]).write(path.replace(".ply", "_fg.ply"))
 
-        bg_mask = (self.get_confidence < 0.5).squeeze(-1).detach().cpu().numpy()
+        bg_mask = ~fg_mask
         bg_attributes = gs_attributes[bg_mask]
         bg_elements = np.empty(bg_attributes.shape[0], dtype=dtype_gs)
         bg_elements[:] = list(map(tuple, bg_attributes))

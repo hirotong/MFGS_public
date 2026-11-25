@@ -173,10 +173,9 @@ class GaussianExtractor(object):
         self.clean()
         self.viewpoint_stack = viewpoint_stack
         for i, viewpoint_cam in tqdm(enumerate(self.viewpoint_stack), desc="reconstruct radiance fields"):
-            render_pkg = self.render(viewpoint_cam, self.gaussians)
+            # with fg_only, every exported map (RGB included) comes from the foreground-only render
+            render_pkg = self.render(viewpoint_cam, self.gaussians, fg_only=fg_only)
             rgb = render_pkg["render"]
-            if fg_only:
-                render_pkg = self.render(viewpoint_cam, self.gaussians, fg_only=True)
             try:
                 confidence = render_pkg["rend_confidence"]
                 self.confidencemaps.append(confidence.cpu())
